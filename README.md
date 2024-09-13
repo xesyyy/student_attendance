@@ -11,7 +11,7 @@
 
 ![image](https://github.com/user-attachments/assets/9adfa277-4d0a-496d-a3d4-4ab009850a31)
 
-Спецификация API
+#### Спецификация API
 
 ![image](https://github.com/user-attachments/assets/e16d864d-97f1-4989-8544-fb3d8dce2974)
 
