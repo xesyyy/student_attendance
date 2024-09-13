@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Посещаемость студента</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .save-button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .save-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="page-title">Посещаемость студента</h1>
+        <table id="attendance-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Предмет</th>
+                    <th>Аудитория</th>
+                    <th>Преподаватель</th>
+                    <th>Дата</th>
+                    <th>Статус</th>
+                </tr>
+            </thead>
+            <tbody id="attendance-body">
+                <!-- Здесь будут данные посещаемости -->
+            </tbody>
+        </table>
+        <button class="save-button" id="save-button">Сохранить</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const attendanceBody = document.getElementById('attendance-body');
+            const saveButton = document.getElementById('save-button');
+            const pageTitle = document.getElementById('page-title');
+
+            // Получаем параметры из URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const groupId = urlParams.get('group');
+            const studentId = urlParams.get('student');
+            const date = urlParams.get('date');
+
+            // Статусы посещаемости
+            const statuses = [
+                'Студент еще не был отмечен',
+                'Пропуск по уважительной причине',
+                'Пропуск по неуважительной причине',
+                'Студент присутствовал'
+            ];
+
+            // Функция для выполнения GET запроса
+            function fetchData(url, callback) {
+                const xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === XMLHttpRequest.DONE) {
+                        if (xhr.status === 200) {
+                            const data = JSON.parse(xhr.responseText);
+                            callback(data);
+                        } else {
+                            console.error('Ошибка при получении данных:', xhr.status);
+                        }
+                    }
+                };
+                xhr.open('GET', url);
+                xhr.send();
+            }
+
+            // Функция для отображения данных посещаемости
+            function renderAttendance(data) {
+                const student = data.student;
+                const attendances = data.attendances;
+                const subjects = data.subjects;
+
+                pageTitle.innerText = `Посещаемость студента ${student.name}`;
+
+                attendances.forEach(function (attendance, index) {
+                    const subject = subjects.find(subject => subject.id_subject === attendance.id_subject);
+                    const row = document.createElement('tr');
+                    const statusOptions = statuses.map(status => `<option value="${status}" ${status === attendance.status ? 'selected' : ''}>${status}</option>`).join('');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${subject ? subject.name : ''}</td>
+                        <td>${subject ? subject.room : ''}</td>
+                        <td>${subject ? subject.professor : ''}</td>
+                        <td>${attendance.date}</td>
+                        <td>
+                            <select data-id-subject="${attendance.id_subject}" data-date="${attendance.date}">
+                                ${statusOptions}
+                            </select>
+                        </td>
+                    `;
+                    attendanceBody.appendChild(row);
+                });
+            }
+
+            // Формируем URL для запроса
+            const apiUrl = `http://localhost:80/attendance/groups/${groupId}/students/${studentId}`;
+            const urlWithDate = date ? `${apiUrl}?date=${date}` : apiUrl;
+
+            // Выполняем запрос на сервер
+            fetchData(urlWithDate, renderAttendance);
+
+            // Обработчик для кнопки "Сохранить"
+            saveButton.addEventListener('click', function () {
+                const selects = attendanceBody.querySelectorAll('select');
+                selects.forEach(function (select) {
+                    const id_subject = select.getAttribute('data-id-subject');
+                    const attendance_date = select.getAttribute('data-date');
+                    const status = select.value;
+
+                    const updateData = {
+                        id_subject: id_subject,
+                        status: status
+                    };
+
+                    const updateUrl = date ? `${apiUrl}?date=${attendance_date}` : apiUrl;
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PATCH', updateUrl, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+                    xhr.onreadystatechange = function () {
+                        if (xhr.readyState === XMLHttpRequest.DONE) {
+                            if (xhr.status !== 200) {
+                                console.error('Ошибка при обновлении данных:', xhr.status);
+                            }
+                        }
+                    };
+                    xhr.send(JSON.stringify(updateData));
+                });
+            });
+        });
+    </script>
+</body>
+</html>

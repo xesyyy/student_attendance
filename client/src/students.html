@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список студентов</title>
+    <link rel="stylesheet" href="styles_students.css">
+</head>
+<body>
+    <div style="display: flex; flex-direction: column; align-items: center; height: 100vh;">
+        <div class="container">
+            <h1>Список студентов</h1>
+
+            <p style="font-weight: bold;">Выберите дату посещения:</p>
+            <!-- Поле ввода даты -->
+            <div class="date-wrapper">
+                <input type="date" id="date" name="date">
+            </div>
+
+            <p style="font-weight: bold;">Выберите студента:</p>
+            <!-- Список студентов -->
+            <div id="student-list"></div>
+            
+            <!-- Иконка -->
+            <div style="text-align: center; cursor: pointer;" onclick="openStudentForm()">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g clip-path="url(#clip0_0_1120)">
+                        <path d="M24 4C12.95 4 4 12.95 4 24C4 35.05 12.95 44 24 44C35.05 44 44 35.05 44 24C44 12.95 35.05 4 24 4ZM34 26H26V34H22V26H14V22H22V14H26V22H34V26Z" fill="black"/>
+                    </g>
+                    <defs>
+                        <clipPath id="clip0_0_1120">
+                            <rect width="48" height="48" fill="white"/>
+                        </clipPath>
+                    </defs>
+                </svg>         
+            </div>
+
+            <!-- Форма для ввода имени студента -->
+            <div id="student-form" style="display: none; margin-top: 20px; align-self: center;">
+                <form id="add-student-form">
+                    <input type="text" id="student-name" placeholder="Введите имя студента" required>
+                    <button type="submit">Добавить студента</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Объявляем переменные в глобальной области видимости
+        let studentList;
+        let dateInput;
+
+        // Функция для открытия формы при нажатии на кнопку
+        function openStudentForm() {
+            var studentForm = document.getElementById('student-form');
+            if (studentForm.style.display === 'block') {
+                // Если форма уже открыта, скрываем её
+                studentForm.style.display = 'none';
+            } else {
+                // Иначе открываем форму
+                studentForm.style.display = 'block';
+            }
+        }
+
+        // Функция для отправки POST-запроса
+        function submitStudent() {
+            const form = document.getElementById('add-student-form');
+            const name = document.getElementById('student-name').value;
+            const groupName = getGroupNameFromURL(); // Получаем название группы из ссылки
+            const data = {
+                "name": name,
+                "group_name": groupName
+            };
+
+            fetch(`http://localhost:80/attendance/groups/${groupName}/students/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка при отправке данных');
+                }
+                alert('Студент успешно добавлен!');
+                form.reset(); // Очищаем форму после успешной отправки
+                // После успешного добавления обновляем список студентов
+                fetchStudents();
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка. Пожалуйста, повторите попытку позже.');
+            });
+        }
+
+        // Функция для получения названия группы из URL
+        function getGroupNameFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('group');
+        }
+
+        // Функция для загрузки списка студентов при загрузке страницы
+        function fetchStudents() {
+            const url = `http://localhost:80/attendance/groups/${getGroupNameFromURL()}/students/`;
+            fetchData(url, renderStudents);
+        }
+
+        // Функция для выполнения GET запроса
+        function fetchData(url, callback) {
+            const xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === XMLHttpRequest.DONE) {
+                    if (xhr.status === 200) {
+                        const data = JSON.parse(xhr.responseText);
+                        callback(data);
+                    } else {
+                        console.error('Ошибка при получении данных:', xhr.status);
+                    }
+                }
+            };
+            xhr.open('GET', url);
+            xhr.send();
+        }
+
+        // Функция для отображения списка студентов на странице
+        function renderStudents(data) {
+            const group = data.group;
+            const students = data.students;
+
+            if ("error" in data) {
+                const errorMessage = data.error;
+                const errorMessageElement = document.createElement('p');
+                errorMessageElement.textContent = errorMessage;
+                studentList.appendChild(errorMessageElement);
+                return;
+            }
+
+            if (!students || students.length === 0) {
+                const errorMessage = "Студенты этой группы не были найдены.";
+                const errorMessageElement = document.createElement('p');
+                errorMessageElement.textContent = errorMessage;
+                studentList.appendChild(errorMessageElement);
+                return;
+            }
+
+            const groupName = group.group_name;
+            const mainTitle = document.querySelector('h1');
+            mainTitle.textContent = `Список студентов - ${groupName}`;
+
+            studentList.innerHTML = `<ul>`;
+            students.forEach(function (student) {
+                const listItem = document.createElement('li');
+                listItem.textContent = student.name;
+                listItem.dataset.studentId = student.id_student;
+                studentList.appendChild(listItem);
+
+                // Создаем кнопку "Удалить"
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Удалить';
+                deleteButton.classList.add('delete-button');
+                deleteButton.dataset.studentId = student.id_student;
+                listItem.appendChild(deleteButton); // Добавляем кнопку "Удалить" в элемент списка
+
+                // Добавляем обработчик события клика на кнопку "Удалить"
+                deleteButton.addEventListener('click', function(event) {
+                    const studentId = event.target.dataset.studentId;
+                    deleteStudent(studentId);
+                    event.stopPropagation(); // Предотвращаем всплытие клика только для кнопки "Удалить"
+                });
+
+                // Добавляем обработчик события клика на элемент списка студентов
+                listItem.addEventListener('click', function(event) {
+                    const selectedStudentId = event.currentTarget.dataset.studentId;
+                    redirectToAttendancePage(selectedStudentId);
+                });
+            });
+            studentList.innerHTML += `</ul>`;
+        }
+
+        // Функция для отправки DELETE запроса для удаления студента
+        function deleteStudent(studentId) {
+            const groupName = getGroupNameFromURL();
+            fetch(`http://localhost:80/attendance/groups/${groupName}/students/`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ "id_student": studentId })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка при удалении студента');
+                }
+                alert('Студент успешно удалён!');
+                // После успешного удаления обновляем список студентов
+                fetchStudents();
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при удалении студента. Пожалуйста, повторите попытку позже.');
+            });
+        }
+
+        // Функция для перехода на страницу с отметкой посещаемости
+        function redirectToAttendancePage(studentId) {
+            const selectedDate = dateInput.value;
+            let url = `attendance.html?group=${getGroupNameFromURL()}&student=${studentId}`;
+            if (selectedDate) {
+                url += `&date=${selectedDate}`;
+            }
+            window.location.href = url;
+        }
+
+        // Подписываемся на событие отправки формы
+        document.getElementById('add-student-form').addEventListener('submit', function (event) {
+            event.preventDefault(); // Предотвращаем стандартное поведение формы (перезагрузку страницы)
+            submitStudent(); // Вызываем функцию для отправки данных
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            studentList = document.getElementById('student-list');
+            dateInput = document.getElementById('date');
+
+            // Получаем идентификатор группы из параметров URL
+            const groupId = getGroupNameFromURL();
+
+            // Вызываем функцию для загрузки списка студентов при загрузке страницы
+            fetchStudents();
+
+            // Добавляем обработчик события клика на кнопки "Удалить"
+            studentList.addEventListener('click', function(event) {
+                if (event.target.classList.contains('delete-button')) {
+                    const studentId = event.target.dataset.studentId;
+                    deleteStudent(studentId);
+                    event.stopPropagation(); // Предотвращаем всплытие клика только для кнопки "Удалить"
+                }
+            });
+
+            // Добавляем обработчик события клика на кнопки студента
+            studentList.addEventListener('click', function(event) {
+                if (!event.target.classList.contains('delete-button') && event.target.tagName === 'LI') {
+                    const selectedStudentId = event.target.dataset.studentId;
+                    redirectToAttendancePage(selectedStudentId);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

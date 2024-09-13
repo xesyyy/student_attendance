@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Список групп</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Список групп</h1>
+        <ul id="group-list"></ul>
+
+        <!-- Иконка -->
+        <div style="text-align: center; margin-top: 20px; cursor: pointer;" onclick="openGroupForm()">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g clip-path="url(#clip0_0_1120)">
+                    <path d="M24 4C12.95 4 4 12.95 4 24C4 35.05 12.95 44 24 44C35.05 44 44 35.05 44 24C44 12.95 35.05 4 24 4ZM34 26H26V34H22V26H14V22H22V14H26V22H34V26Z" fill="black"/>
+                </g>
+                <defs>
+                    <clipPath id="clip0_0_1120">
+                        <rect width="48" height="48" fill="white"/>
+                    </clipPath>
+                </defs>
+            </svg>         
+        </div>
+
+        <!-- Форма для ввода названия группы -->
+        <div id="group-form" style="display: none;">
+            <form id="add-group-form">
+                <input type="text" id="group-name" placeholder="Введите название группы" required>
+                <button type="submit">Добавить группу</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const groupList = document.getElementById('group-list');
+
+            // Функция для выполнения GET запроса
+            function fetchData(url, callback) {
+                const xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === XMLHttpRequest.DONE) {
+                        if (xhr.status === 200) {
+                            const data = JSON.parse(xhr.responseText);
+                            callback(data);
+                        } else {
+                            console.error('Ошибка при получении данных:', xhr.status);
+                        }
+                    }
+                };
+                xhr.open('GET', url);
+                xhr.send();
+            }
+
+            // Функция для отображения списка групп на странице
+            function renderGroups(groups) {
+                // Очищаем список групп перед добавлением новых
+                clearGroupList();
+
+                for (const groupName in groups) {
+                    if (groups.hasOwnProperty(groupName)) {
+                        const group = groups[groupName];
+                        const listItem = document.createElement('li');
+                        listItem.textContent = group.group_name;
+                        listItem.addEventListener('click', function () {
+                            redirectToStudentPage(group.id_group);
+                        });
+                        groupList.appendChild(listItem);
+
+                        // Создаем кнопку "Удалить"
+                        const deleteButton = document.createElement('button');
+                        deleteButton.textContent = 'Удалить';
+                        deleteButton.classList.add('delete-button');
+                        deleteButton.dataset.groupId = group.id_group;
+                        listItem.appendChild(deleteButton); // Добавляем кнопку "Удалить" в элемент списка
+
+                        // Добавляем обработчик события клика на кнопку "Удалить"
+                        deleteButton.addEventListener('click', function(event) {
+                            const groupId = event.target.dataset.groupId;
+                            deleteGroup(groupId);
+                            event.stopPropagation(); // Предотвращаем всплытие клика только для кнопки "Удалить"
+                        });
+                    }
+                }
+            }
+
+            // Функция для очистки списка групп на странице
+            function clearGroupList() {
+                while (groupList.firstChild) {
+                    groupList.removeChild(groupList.firstChild);
+                }
+            }
+
+            // Функция для загрузки списка групп при загрузке страницы
+            function fetchGroups() {
+                fetchData('http://localhost:80/attendance/groups/', renderGroups);
+            }
+
+            // Функция для перехода на страницу со списком студентов
+            function redirectToStudentPage(groupId) {
+                window.location.href = `students.html?group=${groupId}`;
+            }
+
+            // Функция для отправки POST-запроса для добавления новой группы
+            function submitGroup() {
+                const form = document.getElementById('add-group-form');
+                const groupName = document.getElementById('group-name').value;
+                const data = {
+                    "group_name": groupName
+                };
+
+                fetch(`http://localhost:80/attendance/groups/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при отправке данных');
+                    }
+                    alert('Группа успешно добавлена!');
+                    form.reset(); // Очищаем форму после успешной отправки
+                    fetchGroups(); // Обновляем список групп
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Произошла ошибка. Пожалуйста, повторите попытку позже.');
+                });
+            }
+
+            // Функция для отправки DELETE запроса для удаления группы
+            function deleteGroup(groupId) {
+                fetch(`http://localhost:80/attendance/groups/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ "id_group": groupId })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при удалении группы');
+                    }
+                    alert('Группа успешно удалена!');
+                    // Очищаем список групп перед загрузкой обновленного списка
+                    clearGroupList();
+                    // После успешного удаления обновляем список групп
+                    fetchGroups();
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Произошла ошибка при удалении группы. Пожалуйста, повторите попытку позже.');
+                });
+            }
+
+            // Подписываемся на событие отправки формы
+            document.getElementById('add-group-form').addEventListener('submit', function (event) {
+                event.preventDefault(); // Предотвращаем стандартное поведение формы (перезагрузку страницы)
+                submitGroup(); // Вызываем функцию для отправки данных
+            });
+
+            // Вызываем функцию для загрузки списка групп при загрузке страницы
+            fetchGroups();
+        });
+
+        // Функция для открытия формы при нажатии на кнопку
+        function openGroupForm() {
+            var groupForm = document.getElementById('group-form');
+            if (groupForm.style.display === 'block') {
+                // Если форма уже открыта, скрываем её
+                groupForm.style.display = 'none';
+            } else {
+                // Иначе открываем форму
+                groupForm.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
